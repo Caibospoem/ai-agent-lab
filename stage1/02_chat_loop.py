@@ -17,6 +17,7 @@
 运行：python 02_chat_loop.py
 命令：输入 q 退出；输入 reset 清空记忆（观察与不 reset 的区别）
 """
+import json
 import os
 
 from dotenv import load_dotenv
@@ -72,6 +73,11 @@ def main() -> None:
             messages = [{"role": "system", "content": SYSTEM_PROMPT}]
             print(">> 记忆已清空（messages 列表被重置）\n")
             continue
+        if user_input.lower() == "history": # history 命令
+            print(">> 当前历史消息：")
+            print(json.dumps(messages, ensure_ascii=False, indent=2))
+            print()
+            continue
 
         # [感知] 用户输入进入历史
         messages.append({"role": "user", "content": user_input})
@@ -79,6 +85,13 @@ def main() -> None:
         reply = chat(messages)
         # [记录] 模型的话也进入历史 —— 没有这一行就没有连续对话
         messages.append({"role": "assistant", "content": reply})
+        # 同时保留系统消息(system)和最近20条消息(10轮对话)
+        if len(messages) > 21:
+            system_message = messages[0]
+            recent_messages = messages[-20:]
+            messages = [system_message] + recent_messages
+            print(f">> 历史消息过长，已截断，保留最近20条对话 (共{len(messages)}条)\n")
+        # 更新最新的20条对话
 
         print(f"小智: {reply}    [当前历史 {len(messages)} 条]\n")
 
