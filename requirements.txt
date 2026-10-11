@@ -1,0 +1,6 @@
+openai>=1.0
+python-dotenv>=1.0
+langchain>=1.0
+langchain-openai>=1.0
+langgraph>=1.0
+# 第4课 RAG 时再安装：langchain-community chromadb pypdf
