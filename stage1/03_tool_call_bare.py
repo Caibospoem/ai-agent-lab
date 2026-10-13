@@ -70,6 +70,14 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "now_time",
+            "description": "返回当前时间的字符串，格式：YYYY-MM-DD HH:MM:SS",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "calculator",
             "description": "精确计算数学表达式，支持 + - * / % ** 和括号",
             "parameters": {
@@ -110,6 +118,10 @@ def get_weather(city: str) -> str:
     except Exception as e:  # 失败也返回 JSON —— 错误要回喂给模型让它自己决策
         return json.dumps({"error": f"天气查询失败: {e}"}, ensure_ascii=False)
 
+def now_time() -> str:
+    """返回当前时间的字符串，格式：YYYY-MM-DD HH:MM:SS"""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 
 # calculator 用 AST 白名单解析，绝不裸用 eval()（面试安全考点：eval 任意代码执行）
 _CALC_OPS = {
@@ -149,6 +161,8 @@ def execute_tool(name: str, arguments_json: str) -> str:
         return get_weather(args.get("city", ""))
     if name == "calculator":
         return calculator(args.get("expression", ""))
+    if name == "now_time":
+        return json.dumps({"result": now_time()}, ensure_ascii=False)
     return json.dumps({"error": f"未知工具: {name}"}, ensure_ascii=False)
 
 
@@ -232,7 +246,7 @@ def run_agent(messages: list[dict]) -> str:
 def main() -> None:
     if not API_KEY:
         print(">> Mock 模式：填入 key 后用真工具查真天气\n")
-    print(f"Agent 已就绪（{MODEL}） | 工具: get_weather, calculator | q=退出 reset=清空 history=看历史\n")
+    print(f"Agent 已就绪（{MODEL}） | 工具: get_weather, calculator, now_time | q=退出 reset=清空 history=看历史\n")
 
     messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
 

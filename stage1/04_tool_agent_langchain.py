@@ -53,6 +53,10 @@ def get_weather(city: str) -> str:
     except Exception as e:
         return json.dumps({"error": f"天气查询失败: {e}"}, ensure_ascii=False)
 
+@tool
+def now_time() -> str:
+    """返回当前时间的字符串，格式：YYYY-MM-DD HH:MM:SS。用户问时间必须调用。"""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 @tool
 def calculator(expression: str) -> str:
@@ -85,12 +89,12 @@ else:
 
 agent = create_agent(
     llm,
-    tools=[get_weather, calculator],
+    tools=[get_weather, calculator, now_time],
     system_prompt="你是助手'小智'：实时信息和精确计算必须用工具，回答注明来源，保持两句话以内。",
 )
 
 if __name__ == "__main__":
-    questions = ["现在晋江天气怎么样？", "帮我精确计算 (3.7+1.2)*15"]
+    questions = ["现在晋江天气怎么样？", "帮我精确计算 (3.7+1.2)*15", "现在几点了？"]
 
     for q in questions:
         print(f"\n你: {q}")
