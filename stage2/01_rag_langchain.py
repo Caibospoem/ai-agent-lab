@@ -45,9 +45,11 @@ KB_DOCS = [
     Document(page_content="智谱 embedding-3 是文本向量化模型，用于语义检索。"),
     Document(page_content="wttr.in 是免费无 key 的天气 API，第 3 课用作 Agent 工具。"),
     Document(page_content="MCP 是 Anthropic 提出的工具接入协议，比喻为 Agent 的 USB-C。"),
+    Document(page_content="作者刘曾做过的项目有 MT30合规平台、RAG、基于AnimeGANv3的图片风格迁移微信小程序-风韵转换、人脸识别系统、智能小夜灯-派蒙、“星露谷”邻里互助平台。"),
 ]
 
-# ---- 第 2 部分：向量库与检索器 -------------------------------------------
+# ---- 第 2 部分：向量库与检索器 ---------
+# .----------------------------------
 def build_components():
     """有 key 用真模型，无 key 用 Fake 验证链路（接口一致——接口抽象的价值）"""
     if API_KEY:
@@ -111,6 +113,7 @@ if __name__ == "__main__":
     demo_questions = [
         "训练营阶段二学什么？",          # 库内有答案 → 正常回答并引用
         "老板的银行卡密码是多少？",      # 库外问题 → 必须拒答（期望边界）
+        "列举一些作者刘做过的项目",                # 库内有答案 → 正常回答并引用
     ]
     for q in demo_questions:
         print(f"\n问: {q}")

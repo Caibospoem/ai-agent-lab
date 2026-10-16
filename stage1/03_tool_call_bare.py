@@ -57,7 +57,29 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "get_weather",
-            "description": "查询指定城市的当前实时天气（气温/体感/天况/湿度）",
+            "description": (
+                "查询指定城市【当前此刻】的实时天气（气温/体感/天况/湿度）。"
+                "注意：只能获取此刻实况，不能查明天、后天或未来任何时间的天气；"
+                "用户询问未来天气（明天/后天/未来几天/周末）时，必须改用 get_forecast 工具。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string", "description": "城市名，如：晋江、上海、Tokyo"}
+                },
+                "required": ["city"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_forecast",
+            "description": (
+                "查询指定城市【今明后三天】的天气预报（日期/最高最低温/天况/降水概率）。"
+                "当用户询问明天、后天、未来几天、周末等未来天气时，必须使用本工具，"
+                "不要使用 get_weather（它只能查当前实况）。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -118,6 +140,35 @@ def get_weather(city: str) -> str:
     except Exception as e:  # 失败也返回 JSON —— 错误要回喂给模型让它自己决策
         return json.dumps({"error": f"天气查询失败: {e}"}, ensure_ascii=False)
 
+def get_forecast(city: str) -> str:
+    """今明后三天预报：遍历 weather 数组"""
+    try:
+        r = httpx.get(
+            f"https://wttr.in/{city}" ,
+            params={"format": "j1"},
+            headers={"User-Agent": "curl/8.0"},
+            timeout=10,
+        )
+        r.raise_for_status()
+        days = r.json()["weather"][:3]  # j1 固定返回3天，切片保险
+        forecast = []
+        for d in days:
+            # 取中午12点的分段作为当天代表天况（hourly 按3小时切分）
+            noon = next((h for h in d["hourly"] if h["time"] == "1200"), d["hourly"][0])
+            forecast.append({
+                "date": d["date"],
+                "max_c": d["maxtempC"],
+                "min_c": d["mintempC"],
+                "desc": noon["weatherDesc"][0]["value"],
+                "rain_chance": noon.get("chanceofrain", "N/A") + "%",
+            })
+        return json.dumps(
+            {"city": city, "forecast": forecast, "source": "wttr.in"},
+            ensure_ascii=False,
+        )
+    except Exception as e:
+        return json.dumps({"error": f"预报查询失败: {e}"}, ensure_ascii=False)
+
 def now_time() -> str:
     """返回当前时间的字符串，格式：YYYY-MM-DD HH:MM:SS"""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -159,6 +210,8 @@ def execute_tool(name: str, arguments_json: str) -> str:
         return json.dumps({"error": "参数不是合法JSON"}, ensure_ascii=False)
     if name == "get_weather":
         return get_weather(args.get("city", ""))
+    if name == "get_forecast":
+        return get_forecast(args.get("city", ""))
     if name == "calculator":
         return calculator(args.get("expression", ""))
     if name == "now_time":
@@ -246,7 +299,7 @@ def run_agent(messages: list[dict]) -> str:
 def main() -> None:
     if not API_KEY:
         print(">> Mock 模式：填入 key 后用真工具查真天气\n")
-    print(f"Agent 已就绪（{MODEL}） | 工具: get_weather, calculator, now_time | q=退出 reset=清空 history=看历史\n")
+    print(f"Agent 已就绪（{MODEL}） | 工具: get_weather, get_forecast, calculator, now_time | q=退出 reset=清空 history=看历史\n")
 
     messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
 

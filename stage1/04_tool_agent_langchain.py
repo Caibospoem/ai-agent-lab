@@ -54,6 +54,28 @@ def get_weather(city: str) -> str:
         return json.dumps({"error": f"天气查询失败: {e}"}, ensure_ascii=False)
 
 @tool
+def get_forecast(city: str) -> str:
+    """查询指定城市的未来 3 天天气预报（最高/最低气温、天况）。用户问天气必须调用。"""
+    try:
+        r = httpx.get(
+            f"https://wttr.in/{city}", params={"format": "j1"},
+            headers={"User-Agent": "curl/8.0"}, timeout=10,
+        )
+        r.raise_for_status()
+        forecast = r.json()["weather"][:3]
+        return json.dumps({
+            "city": city,
+            "forecast": [
+                {"date": f["date"], "maxtempC": f["maxtempC"], "mintempC": f["mintempC"],
+                 "desc": f["hourly"][4]["weatherDesc"][0]["value"]}
+                for f in forecast
+            ],
+            "source": "wttr.in", "query_time": datetime.now().strftime("%H:%M"),
+        }, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": f"天气预报查询失败: {e}"}, ensure_ascii=False)
+
+@tool
 def now_time() -> str:
     """返回当前时间的字符串，格式：YYYY-MM-DD HH:MM:SS。用户问时间必须调用。"""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -89,7 +111,7 @@ else:
 
 agent = create_agent(
     llm,
-    tools=[get_weather, calculator, now_time],
+    tools=[get_weather, get_forecast, calculator, now_time],
     system_prompt="你是助手'小智'：实时信息和精确计算必须用工具，回答注明来源，保持两句话以内。",
 )
 
