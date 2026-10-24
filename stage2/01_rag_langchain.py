@@ -17,6 +17,7 @@
 运行：python 01_rag_langchain.py    （无 key 自动 Mock，链路结构照跑）
      python 01_rag_langchain.py chat 进入交互问答
 """
+from operator import ge
 import os
 import sys
 
@@ -34,6 +35,11 @@ API_KEY = os.getenv("ZHIPU_API_KEY", "").strip()
 BASE_URL = "https://open.bigmodel.cn/api/paas/v4/"
 LLM_MODEL = os.getenv("ZHIPU_MODEL", "glm-4-flash")
 EMBED_MODEL = "embedding-3"  # 你 MT30 项目同款，语义检索已验证可用
+
+# Mock 模式下 DeterministicFakeEmbedding 是随机向量（无语义），会把一切拦死，
+# 所以无 key 时阈值置 -1 保证链路验证能跑；真模式下用标定后的值
+THRESHOLD = 0.5 if API_KEY else -1.0
+
 
 # ---- 第 1 部分：知识库（生产中来自文档库；这里 8 条演示）----------------
 KB_DOCS = [
@@ -90,23 +96,30 @@ def format_docs(docs) -> str:
     return "\n\n".join(f"[片段{i+1}] {d.page_content}" for i, d in enumerate(docs))
 
 
-# ---- 第 4 部分：LCEL 链 —— 数据像管道一样流过每个组件 -------------------
-# {"context": 检索结果, "question": 原问题} → prompt → llm → 文本
-rag_chain = (
-    {"context": retriever | format_docs, "question": RunnablePassthrough()}
-    | prompt
-    | llm
-    | StrOutputParser()
-)
+# ---- 第 4 部分：链拆两半 —— 检索守卫在外，生成链在内 -------------------
+gen_chain = prompt | llm | StrOutputParser()   # 只负责生成，不再自带检索
+
+def format_docs(docs) -> str:
+    return "\n\n".join(f"[片段{i+1}] {d.page_content}" for i, d in enumerate(docs))
+
 
 # ---- 第 5 部分：演示入口 -------------------------------------------------
 def answer(question: str) -> str:
-    # 先把检索过程打印出来 —— 检索质量决定 RAG 上限，要学会盯这一步
-    hits = vectorstore.similarity_search_with_score(question, k=3)
+    hits = vectorstore.similarity_search_with_score(question, k=3)  # 全程只检索这一次
     print("  [检索] 命中片段（相似度）:")
     for doc, score in hits:
-        print(f"    {score:.3f}  {doc.page_content[:36]}…")
-    return rag_chain.invoke(question)
+        flag = "✓" if score >= THRESHOLD else f"✗ 低于{THRESHOLD}，过滤"
+        print(f"    {score:.3f} {flag} {doc.page_content[:36]}…")
+
+    valid = [d for d, s in hits if s >= THRESHOLD]        # ← 00 同款阈值过滤
+    if not valid:
+        top = hits[0][1] if hits else 0.0
+        return (f"[阈值拦截] 最高分 {top:.3f} 未过 {THRESHOLD} → "
+                f"检索层直接拒答，本次 LLM 调用数：0（省钱的防线）")
+
+    print(f"  [放行] {len(valid)} 条过线 → 塞进 prompt 调 {LLM_MODEL}")
+    return gen_chain.invoke({"context": format_docs(valid), "question": question})
+
 
 
 if __name__ == "__main__":
